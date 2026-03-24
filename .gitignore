@@ -125,4 +125,4 @@ docker-compose.override.yml
 *.tmp
 *.temp
 .cache/
-.sass-cache/
+.sass-cache/backend/.env
