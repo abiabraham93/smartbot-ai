@@ -3,7 +3,7 @@ import { t as tr, isRTL, getUserLanguage, LANGUAGE_NAMES } from "../i18n";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 
-const API = "http://127.0.0.1:8000";
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 function userHeader() {
   const token = localStorage.getItem("user_token");
