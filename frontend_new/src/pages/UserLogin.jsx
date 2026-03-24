@@ -1,0 +1,180 @@
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import axios from "axios";
+
+const API = "http://127.0.0.1:8000";
+
+export default function UserLogin() {
+  const [mode,     setMode]     = useState("email"); // email | phone
+  const [step,     setStep]     = useState(1);       // 1=credentials, 2=otp
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
+  const [phone,    setPhone]    = useState("");
+  const [otp,      setOtp]      = useState("");
+  const [error,    setError]    = useState("");
+  const [loading,  setLoading]  = useState(false);
+  const navigate = useNavigate();
+
+  function saveAndRedirect(data) {
+    localStorage.setItem("user_token",  data.access_token);
+    localStorage.setItem("user_name",   data.user.full_name);
+    localStorage.setItem("user_email",  data.user.email || "");
+    localStorage.setItem("user_id",     data.user.id);
+    localStorage.setItem("user_prefs",  JSON.stringify(data.user.preferences || {}));
+    navigate("/");
+  }
+
+  const submitEmail = async (e) => {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    try {
+      const res = await axios.post(`${API}/user/login`, { email, password });
+      saveAndRedirect(res.data);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Invalid email or password");
+    } finally { setLoading(false); }
+  };
+
+  const sendPhoneOtp = async (e) => {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    try {
+      await axios.post(`${API}/user/phone/send-otp`, { phone });
+      setStep(2);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to send OTP");
+    } finally { setLoading(false); }
+  };
+
+  const verifyPhoneOtp = async (e) => {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    try {
+      const res = await axios.post(`${API}/user/phone/verify`, { phone, otp });
+      saveAndRedirect(res.data);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Invalid OTP");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-sm p-8 border border-gray-100 dark:border-gray-700">
+
+        <div className="flex flex-col items-center mb-6">
+          <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center text-white text-xl font-bold mb-3">S</div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Welcome back</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Sign in to SmartBot</p>
+        </div>
+
+        {/* Mode switcher */}
+        {step === 1 && (
+          <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-6">
+            <button onClick={() => setMode("email")}
+              className={`flex-1 py-1.5 text-sm rounded-lg font-medium transition ${mode === "email" ? "bg-white dark:bg-gray-700 text-indigo-600 shadow-sm" : "text-gray-500"}`}>
+              Email
+            </button>
+            <button onClick={() => setMode("phone")}
+              className={`flex-1 py-1.5 text-sm rounded-lg font-medium transition ${mode === "phone" ? "bg-white dark:bg-gray-700 text-indigo-600 shadow-sm" : "text-gray-500"}`}>
+              Phone
+            </button>
+          </div>
+        )}
+
+        {/* Email login */}
+        {mode === "email" && step === 1 && (
+          <form onSubmit={submitEmail} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Email</label>
+              <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Password</label>
+              <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              />
+            </div>
+            {error && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
+            <button type="submit" disabled={loading}
+              className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition disabled:opacity-60">
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
+        )}
+
+        {/* Phone — enter number */}
+        {mode === "phone" && step === 1 && (
+          <form onSubmit={sendPhoneOtp} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Phone Number</label>
+              <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)}
+                placeholder="+971501234567"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              />
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-3 py-2">
+              <p className="text-xs text-amber-700 dark:text-amber-300">OTP will be shown in the backend terminal</p>
+            </div>
+            {error && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
+            <button type="submit" disabled={loading}
+              className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition disabled:opacity-60">
+              {loading ? "Sending OTP..." : "Send OTP"}
+            </button>
+          </form>
+        )}
+
+        {/* Phone — enter OTP */}
+        {step === 2 && (
+          <form onSubmit={verifyPhoneOtp} className="space-y-4">
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl px-4 py-3">
+              <p className="text-sm text-green-700 dark:text-green-300 font-medium">OTP sent!</p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">Check backend terminal for 6-digit code.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">6-digit OTP</label>
+              <input type="text" required value={otp}
+                onChange={e => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="000000" maxLength={6}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-center text-2xl tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            {error && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
+            <button type="submit" disabled={loading || otp.length < 6}
+              className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition disabled:opacity-60">
+              {loading ? "Verifying..." : "Sign In"}
+            </button>
+            <button type="button" onClick={() => setStep(1)}
+              className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition">← Back</button>
+          </form>
+        )}
+
+        {/* Google OAuth placeholder */}
+        <div className="mt-4">
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200 dark:border-gray-700"/></div>
+            <div className="relative flex justify-center"><span className="px-3 bg-white dark:bg-gray-900 text-xs text-gray-400">or</span></div>
+          </div>
+          <button disabled
+            className="w-full py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-sm text-gray-400 flex items-center justify-center gap-2 cursor-not-allowed opacity-60">
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Continue with Google (coming soon)
+          </button>
+        </div>
+
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
+          Don't have an account?{" "}
+          <Link to="/register" className="text-indigo-600 hover:underline font-medium">Create one</Link>
+        </p>
+      </div>
+    </div>
+  );
+}

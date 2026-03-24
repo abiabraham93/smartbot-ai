@@ -1,0 +1,47 @@
+# SmartBot V2 — Backend Requirements
+# Python 3.12+ compatible
+# Install with: pip install -r requirements.txt
+
+# Web framework
+fastapi==0.133.1
+uvicorn[standard]==0.41.0
+python-multipart==0.0.22
+starlette==0.52.1
+
+# Rate limiting
+slowapi==0.1.9
+
+# Database - PostgreSQL
+sqlalchemy==2.0.47
+psycopg2-binary==2.9.10
+alembic==1.16.1
+
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+
+# Environment
+python-dotenv==1.2.1
+
+# LangChain - IMPORTANT: use these exact versions (matching your installed)
+langchain==1.2.10
+langchain-community==0.4.1
+langchain-text-splitters==1.1.1
+langchain-core==1.2.16
+langchain-classic==1.0.1
+
+# Vector DB
+chromadb==1.5.1
+
+# Ollama
+ollama==0.6.1
+
+# Document loaders
+pypdf==6.7.3
+python-docx==1.1.2
+
+# Utilities
+tqdm==4.67.3
+pydantic==2.12.5
+pydantic-settings==2.13.1
