@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=False)
 
 # ─────────────────────────────────────────────
 # Base paths
@@ -20,10 +20,9 @@ EMBED_MODEL = "nomic-embed-text"
 # ─────────────────────────────────────────────
 # PostgreSQL
 # ─────────────────────────────────────────────
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:password@localhost:5432/smartbot_v2"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set!")
 
 # ─────────────────────────────────────────────
 # JWT / Auth
