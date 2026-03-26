@@ -163,6 +163,24 @@ def ingest_file(file_path: str, chunk_size: int = 600, chunk_overlap: int = 100)
         print(f"No chunks created for {file_path} — skipping")
         return
 
-    vectordb = get_vectorstore()
-    vectordb.add_documents(chunks)
-    print(f"Ingested {len(chunks)} chunks from {os.path.basename(file_path)}")
+    try:
+        vectordb = get_vectorstore()
+        vectordb.add_documents(chunks)
+        print(f"Ingested {len(chunks)} chunks from {os.path.basename(file_path)}")
+    except Exception as e:
+        if "_type" in str(e) or "collection" in str(e).lower():
+            print(f"[SmartBot] ChromaDB format issue — resetting vectorstore and retrying...")
+            from .database import reset_vectorstore, _get_chroma_client
+            global _vectorstore_instance
+            _vectorstore_instance = None
+            try:
+                client = _get_chroma_client()
+                client.reset()
+            except Exception:
+                pass
+            from .database import get_vectorstore as gvs
+            vectordb = gvs()
+            vectordb.add_documents(chunks)
+            print(f"Ingested {len(chunks)} chunks from {os.path.basename(file_path)} after reset")
+        else:
+            raise
