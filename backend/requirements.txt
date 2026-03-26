@@ -11,7 +11,7 @@ starlette==0.52.1
 # Rate limiting
 slowapi==0.1.9
 
-# Database - PostgreSQL
+# Database
 sqlalchemy==2.0.47
 psycopg2-binary==2.9.10
 alembic==1.16.1
@@ -24,21 +24,20 @@ bcrypt==4.0.1
 # Environment
 python-dotenv==1.2.1
 
-# LangChain - IMPORTANT: use these exact versions (matching your installed)
-langchain==0.3.25
-langchain-community==0.3.24
-langchain-text-splitters==0.3.8
-langchain-core==0.3.58
-langchain-groq==0.2.4
-langchain-huggingface==0.1.2
-sentence-transformers==3.0.1
-huggingface-hub==0.24.0
+# LangChain — let pip resolve compatible versions
+langchain
+langchain-community
+langchain-text-splitters
+langchain-core
+langchain-groq
+langchain-huggingface
 
 # Vector DB
 chromadb==0.4.24
 
-# Ollama
-#ollama==0.6.1
+# Embeddings
+sentence-transformers==3.0.1
+huggingface-hub==0.24.0
 
 # Document loaders
 pypdf==6.7.3
@@ -48,7 +47,5 @@ python-docx==1.1.2
 tqdm==4.67.3
 pydantic==2.12.5
 pydantic-settings==2.13.1
-
 pydantic[email]
 email-validator
-
