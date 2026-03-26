@@ -1,8 +1,4 @@
-# SmartBot V2 — Backend Requirements
-# Python 3.12+ compatible
-# Install with: pip install -r requirements.txt
 # Web framework
-
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
 python-multipart==0.0.22
@@ -24,10 +20,10 @@ bcrypt==4.0.1
 # Environment
 python-dotenv==1.0.1
 
-# LangChain — pinned compatible set
+# LangChain — verified compatible set
 langchain==0.3.7
 langchain-community==0.3.7
-langchain-core==0.3.15
+langchain-core==0.3.17
 langchain-text-splitters==0.3.2
 langchain-groq==0.2.1
 langchain-huggingface==0.1.0
@@ -35,13 +31,15 @@ langchain-huggingface==0.1.0
 # Vector DB
 chromadb==0.4.24
 
-# Embeddings — lightweight, no torch needed
+# Embeddings
 sentence-transformers==2.7.0
 huggingface-hub==0.24.0
 
 # Document loaders
 pypdf==4.3.1
 python-docx==1.1.2
+pandas==2.2.3
+openpyxl==3.1.5
 
 # Utilities
 tqdm==4.67.3
@@ -50,3 +48,4 @@ pydantic-settings==2.6.1
 pydantic[email]
 email-validator==2.2.0
 PyYAML==6.0.2
+duckduckgo-search==6.3.7
