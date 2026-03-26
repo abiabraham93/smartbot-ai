@@ -48,18 +48,22 @@ _vectorstore_instance = None
 
 
 def _get_embeddings():
-    from .config import GROQ_API_KEY
-    # Use HuggingFace embeddings (free, no API key needed)
     try:
-        from langchain_huggingface import HuggingFaceEmbeddings
-        return HuggingFaceEmbeddings(
-            model_name="all-MiniLM-L6-v2",
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True}
-        )
-    except ImportError:
-        from langchain_community.embeddings import HuggingFaceEmbeddings
-        return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        from langchain_community.embeddings import FakeEmbeddings
+        import os
+        if os.getenv("GROQ_API_KEY"):
+            from langchain_huggingface import HuggingFaceEmbeddings
+            return HuggingFaceEmbeddings(
+                model_name="all-MiniLM-L6-v2",
+                cache_folder="/tmp/hf_cache",
+                model_kwargs={"device": "cpu"},
+                encode_kwargs={"normalize_embeddings": True}
+            )
+        return FakeEmbeddings(size=384)
+    except Exception as e:
+        print(f"[SmartBot] Embedding fallback: {e}")
+        from langchain_community.embeddings import FakeEmbeddings
+        return FakeEmbeddings(size=384)
 
 
 def _get_chroma_client():

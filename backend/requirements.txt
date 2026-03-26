@@ -20,20 +20,15 @@ bcrypt==4.0.1
 # Environment
 python-dotenv==1.0.1
 
-# LangChain — verified compatible set
+# LangChain
 langchain==0.3.7
 langchain-community==0.3.7
 langchain-core==0.3.17
 langchain-text-splitters==0.3.2
 langchain-groq==0.2.1
-langchain-huggingface==0.1.0
 
 # Vector DB
 chromadb==0.4.24
-
-# Embeddings
-sentence-transformers==2.7.0
-huggingface-hub==0.24.0
 
 # Document loaders
 pypdf==4.3.1
