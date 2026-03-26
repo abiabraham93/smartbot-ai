@@ -25,14 +25,17 @@ bcrypt==4.0.1
 python-dotenv==1.2.1
 
 # LangChain - IMPORTANT: use these exact versions (matching your installed)
-langchain==1.2.10
-langchain-community==0.4.1
-langchain-text-splitters==1.1.1
-langchain-core==1.2.16
-langchain-classic==1.0.1
+langchain==0.3.25
+langchain-community==0.3.24
+langchain-text-splitters==0.3.8
+langchain-core==0.3.58
+langchain-groq==0.2.4
+langchain-huggingface==0.1.2
+sentence-transformers==3.0.1
+huggingface-hub==0.24.0
 
 # Vector DB
-chromadb==1.5.1
+chromadb==0.4.24
 
 # Ollama
 #ollama==0.6.1
@@ -49,7 +52,3 @@ pydantic-settings==2.13.1
 pydantic[email]
 email-validator
 
-langchain-groq==0.2.4
-langchain-huggingface==0.1.2
-sentence-transformers==3.0.1
-huggingface-hub==0.24.0
