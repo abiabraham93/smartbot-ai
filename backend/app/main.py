@@ -1066,8 +1066,10 @@ def api_chat(
             source_docs = retriever.invoke(question)
         else:
             source_docs = retriever.invoke(question)
-            answer      = chain.invoke(question)
+            answer      = chain(lang_question)
 
+        if hasattr(answer, 'content'):
+            answer = answer.content
         if not answer:
             answer = "I could not generate a response."
 
@@ -1306,6 +1308,9 @@ async def chat_stream(request: Request, body: ChatRequest, db: Session = Depends
             else:
                 source_docs = retriever.invoke(question)
                 answer      = chain(full_question)
+
+            if hasattr(answer, 'content'):
+                answer = answer.content
 
             # Extract content from ChatGroq response object
             if hasattr(answer, 'content'):
