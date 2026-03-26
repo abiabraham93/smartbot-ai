@@ -354,7 +354,11 @@ def chat(request: Request, body: ChatRequest, db: Session = Depends(get_db)):
             source_docs = retriever.invoke(question)
         else:
             source_docs = retriever.invoke(question)
-            answer      = chain.invoke(lang_question)
+            answer      = chain(lang_question)
+
+        # Extract content from ChatGroq response object
+        if hasattr(answer, 'content'):
+            answer = answer.content
 
         if not answer:
             answer = "I could not generate a response."
@@ -1297,12 +1301,15 @@ async def chat_stream(request: Request, body: ChatRequest, db: Session = Depends
             chain, retriever = get_qa_chain(internet=body.internet)
 
             if body.internet:
-                # Internet mode — chain is callable as a function, not .invoke()
                 source_docs = retriever.invoke(question)
                 answer      = chain(full_question)
             else:
                 source_docs = retriever.invoke(question)
-                answer      = chain.invoke(full_question)
+                answer      = chain(full_question)
+
+            # Extract content from ChatGroq response object
+            if hasattr(answer, 'content'):
+                answer = answer.content
 
             for doc in source_docs[:6]:
                 metadata   = getattr(doc, "metadata", {})
