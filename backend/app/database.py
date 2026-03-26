@@ -48,12 +48,18 @@ _vectorstore_instance = None
 
 
 def _get_embeddings():
+    from .config import GROQ_API_KEY
+    # Use HuggingFace embeddings (free, no API key needed)
     try:
-        from langchain_ollama import OllamaEmbeddings
-        return OllamaEmbeddings(model=EMBED_MODEL)
+        from langchain_huggingface import HuggingFaceEmbeddings
+        return HuggingFaceEmbeddings(
+            model_name="all-MiniLM-L6-v2",
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True}
+        )
     except ImportError:
-        from langchain_community.embeddings import OllamaEmbeddings
-        return OllamaEmbeddings(model=EMBED_MODEL)
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+        return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
 def _get_chroma_client():

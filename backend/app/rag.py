@@ -99,18 +99,25 @@ def _web_search(query: str, max_results: int = 5) -> str:
 
 
 def _get_llm(temperature: float = 0.1):
+    from .config import GROQ_API_KEY
+    if GROQ_API_KEY:
+        try:
+            from langchain_groq import ChatGroq
+            return ChatGroq(
+                api_key=GROQ_API_KEY,
+                model=LLM_MODEL,
+                temperature=temperature,
+                max_tokens=800,
+            )
+        except ImportError:
+            print("[SmartBot] langchain-groq not installed, falling back to Ollama")
+    # Local fallback
     try:
         from langchain_ollama import OllamaLLM
-        return OllamaLLM(
-            model=LLM_MODEL,
-            temperature=temperature,
-            keep_alive=600,    # keep model in memory for 10 mins
-            num_predict=800,   # limit output length for speed
-            num_ctx=2048,      # smaller context = faster
-        )
-    except ImportError:
+        return OllamaLLM(model="llama3.2:1b", temperature=temperature)
+    except Exception:
         from langchain_community.llms import Ollama
-        return Ollama(model=LLM_MODEL, temperature=temperature)
+        return Ollama(model="llama3.2:1b", temperature=temperature)
 
 
 # ─────────────────────────────────────────────

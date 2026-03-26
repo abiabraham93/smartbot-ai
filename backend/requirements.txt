@@ -35,7 +35,7 @@ langchain-classic==1.0.1
 chromadb==1.5.1
 
 # Ollama
-ollama==0.6.1
+#ollama==0.6.1
 
 # Document loaders
 pypdf==6.7.3
@@ -48,3 +48,8 @@ pydantic-settings==2.13.1
 
 pydantic[email]
 email-validator
+
+langchain-groq==0.2.4
+langchain-huggingface==0.1.2
+sentence-transformers==3.0.1
+huggingface-hub==0.24.0

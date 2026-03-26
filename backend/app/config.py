@@ -12,10 +12,11 @@ DOCUMENTS_DIR = os.path.join(BASE_DIR, "storage", "documents")
 VECTOR_DB_DIR = os.path.join(BASE_DIR, "storage", "vectordb")
 
 # ─────────────────────────────────────────────
-# Ollama / LLM models
+# LLM — Groq (cloud) with Ollama fallback (local)
 # ─────────────────────────────────────────────
-LLM_MODEL = "llama3.2:1b"  # very fast, good for simple queries
-EMBED_MODEL = "nomic-embed-text"
+LLM_MODEL    = os.getenv("LLM_MODEL", "llama3-8b-8192")  # Groq model
+EMBED_MODEL  = os.getenv("EMBED_MODEL", "all-MiniLM-L6-v2")  # HuggingFace model
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 # ─────────────────────────────────────────────
 # PostgreSQL
