@@ -1266,6 +1266,8 @@ async def chat_stream(request: Request, body: ChatRequest, db: Session = Depends
         try:
             # Phase 5 — Build conversation memory context
             history  = []
+            from sqlalchemy.orm import joinedload
+            session = db.query(ChatSession).options(joinedload(ChatSession.messages)).filter(ChatSession.id == body.session_id).first()
             messages = sorted(session.messages, key=lambda m: m.created_at)
             # Determine memory depth from user preferences (default 6)
             mem_depth = 6

@@ -28,7 +28,7 @@ langchain-text-splitters==0.3.2
 langchain-groq==0.2.1
 
 # Vector DB
-chromadb==0.4.24
+chromadb==0.5.23
 
 # Document loaders
 pypdf==4.3.1
