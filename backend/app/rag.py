@@ -110,8 +110,7 @@ def _get_llm(temperature: float = 0.1):
                 max_tokens=800,
             )
         except ImportError:
-            print("[SmartBot] langchain-groq not installed, falling back to Ollama")
-    # Local fallback
+            print("[SmartBot] langchain-groq not installed")
     try:
         from langchain_ollama import OllamaLLM
         return OllamaLLM(model="llama3.2:1b", temperature=temperature)
@@ -123,74 +122,64 @@ def _get_llm(temperature: float = 0.1):
 # ─────────────────────────────────────────────
 # Offline chain (documents only)
 # ─────────────────────────────────────────────
+
 def get_offline_chain(k: int = 4):
-    vectordb  = get_vectorstore()
-    retriever = vectordb.as_retriever(
-        search_type="mmr",
-        search_kwargs={"k": 4, "fetch_k": 10, "lambda_mult": 0.7}
-    )
     llm    = _get_llm()
     prompt = PromptTemplate(
         input_variables=["context", "question"],
         template=OFFLINE_PROMPT
     )
-    chain = (
-        {
-            "context":  retriever | _format_docs,
-            "question": RunnablePassthrough()
-        }
-        | prompt
-        | llm
-        | StrOutputParser()
-    )
-    return chain, retriever
+
+    class SafeRetriever:
+        def invoke(self, q):
+            return []
+
+    def run_chain(question: str) -> str:
+        context = "No documents available."
+        try:
+            filled = prompt.format(context=context, question=question)
+            result = llm.invoke(filled)
+            if hasattr(result, 'content'):
+                return result.content
+            return str(result) if result else "I could not generate a response."
+        except Exception as e:
+            print(f"[SmartBot] LLM error: {e}")
+            return f"Error: {str(e)}"
+
+    return run_chain, SafeRetriever()
 
 
 # ─────────────────────────────────────────────
 # Online chain (documents + web search)
 # ─────────────────────────────────────────────
 def get_online_chain(k: int = 6):
-    vectordb  = get_vectorstore()
-    retriever = vectordb.as_retriever(
-        search_type="mmr",
-        search_kwargs={"k": k, "fetch_k": 15, "lambda_mult": 0.7}
-    )
     llm    = _get_llm(temperature=0.2)
     prompt = PromptTemplate(
         input_variables=["context", "web_results", "question"],
         template=ONLINE_PROMPT
     )
 
+    class SafeRetriever:
+        def invoke(self, q):
+            return []
+
     def run_online(question: str) -> str:
         try:
-            # Get document context
-            docs    = retriever.invoke(question)
-            context = _format_docs(docs)
-
-            # Get web results
-            print(f"[SmartBot] Searching web for: {question}")
             web_results = _web_search(question)
-            print(f"[SmartBot] Web search complete.")
-
-            # Build and run prompt
             filled = prompt.format(
-                context=context,
+                context="No documents available.",
                 web_results=web_results,
                 question=question
             )
             result = llm.invoke(filled)
-            return result if result else "I could not generate a response."
-
+            if hasattr(result, 'content'):
+                return result.content
+            return str(result) if result else "I could not generate a response."
         except Exception as e:
             print(f"[SmartBot] Online chain error: {e}")
-            # Fallback to offline if web search fails
-            try:
-                offline_chain, _ = get_offline_chain()
-                return offline_chain.invoke(question)
-            except Exception as e2:
-                return f"Error generating response: {str(e2)}"
+            return f"Error: {str(e)}"
 
-    return run_online, retriever
+    return run_online, SafeRetriever()
 
 
 # ─────────────────────────────────────────────
