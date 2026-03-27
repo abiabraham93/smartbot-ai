@@ -126,3 +126,7 @@ docker-compose.override.yml
 *.temp
 .cache/
 .sass-cache/backend/.env
+# env files — never commit real credentials
+backend/.env
+backend/.env.local
+backend/.env.demo
