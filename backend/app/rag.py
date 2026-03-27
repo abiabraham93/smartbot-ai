@@ -132,10 +132,20 @@ def get_offline_chain(k: int = 4):
 
     class SafeRetriever:
         def invoke(self, q):
-            return []
+            try:
+                vectordb  = get_vectorstore()
+                retriever = vectordb.as_retriever(
+                    search_type="similarity",
+                    search_kwargs={"k": 4}
+                )
+                return retriever.invoke(q)
+            except Exception as e:
+                print(f"[SmartBot] Retriever error: {e}")
+                return []
 
     def run_chain(question: str) -> str:
-        context = "No documents available."
+        docs    = SafeRetriever().invoke(question)
+        context = _format_docs(docs) if docs else "No documents available."
         try:
             filled = prompt.format(context=context, question=question)
             result = llm.invoke(filled)

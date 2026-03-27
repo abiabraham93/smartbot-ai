@@ -48,22 +48,20 @@ _vectorstore_instance = None
 
 
 def _get_embeddings():
-    try:
-        from langchain_community.embeddings import FakeEmbeddings
-        import os
-        if os.getenv("GROQ_API_KEY"):
-            from langchain_huggingface import HuggingFaceEmbeddings
-            return HuggingFaceEmbeddings(
-                model_name="all-MiniLM-L6-v2",
-                cache_folder="/tmp/hf_cache",
-                model_kwargs={"device": "cpu"},
-                encode_kwargs={"normalize_embeddings": True}
+    import os
+    hf_key = os.getenv("HUGGINGFACE_API_KEY", "")
+    if hf_key:
+        try:
+            from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
+            return HuggingFaceInferenceAPIEmbeddings(
+                api_key=hf_key,
+                model_name="sentence-transformers/all-MiniLM-L6-v2"
             )
-        return FakeEmbeddings(size=384)
-    except Exception as e:
-        print(f"[SmartBot] Embedding fallback: {e}")
-        from langchain_community.embeddings import FakeEmbeddings
-        return FakeEmbeddings(size=384)
+        except Exception as e:
+            print(f"[SmartBot] HuggingFace API embedding error: {e}")
+    print("[SmartBot] WARNING: Using FakeEmbeddings — RAG will not work!")
+    from langchain_community.embeddings import FakeEmbeddings
+    return FakeEmbeddings(size=384)
 
 
 def _get_chroma_client():
