@@ -130,3 +130,8 @@ docker-compose.override.yml
 backend/.env
 backend/.env.local
 backend/.env.demo
+backend/storage/vectordb/
+backend/storage/documents/
+backend/storage/user_uploads/
+frontend/
+frontend_src_backup/

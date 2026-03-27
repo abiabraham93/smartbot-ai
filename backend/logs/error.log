@@ -1,2 +1,0 @@
-2026-03-22 06:17:48 | ERROR    | smartbot.notifications | Teams notification failed: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1032)>
-2026-03-22 13:59:26 | ERROR    | smartbot.api | Streaming error: 'function' object has no attribute 'invoke'
