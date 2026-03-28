@@ -20,12 +20,12 @@ bcrypt==4.0.1
 # Environment
 python-dotenv==1.0.1
 
-# LangChain (upgraded to support langchain-pinecone)
-langchain==0.3.19
-langchain-community==0.3.19
-langchain-core==0.3.51
-langchain-text-splitters==0.3.6
-langchain-groq==0.2.4
+# LangChain (use compatible range, not exact pins)
+langchain>=0.3.20,<0.4.0
+langchain-community>=0.3.20,<0.4.0
+langchain-core>=0.3.51,<0.4.0
+langchain-text-splitters>=0.3.6,<0.4.0
+langchain-groq>=0.2.4,<0.3.0
 
 # Document loaders
 pypdf==4.3.1
@@ -44,4 +44,4 @@ duckduckgo-search==6.3.7
 
 # Pinecone (production vector DB)
 pinecone-client>=3.0.0
-langchain-pinecone==0.2.12
+langchain-pinecone>=0.2.0,<0.3.0
