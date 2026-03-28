@@ -59,6 +59,7 @@ class HuggingFaceAPIEmbeddings(Embeddings):
     Lightweight embeddings class that calls HuggingFace Inference API directly.
     No torch/sentence-transformers needed — just uses HTTP requests.
     Uses the new router.huggingface.co endpoint (old api-inference.huggingface.co is dead).
+    Returns float32 values for Pinecone compatibility.
     """
 
     def __init__(self, api_key: str, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
@@ -66,8 +67,12 @@ class HuggingFaceAPIEmbeddings(Embeddings):
         self.model_name = model_name
         self.api_url = f"https://router.huggingface.co/hf-inference/pipeline/feature-extraction/{model_name}"
 
+    def _to_float32(self, embeddings: List[List[float]]) -> List[List[float]]:
+        """Convert float64 values to float32 for Pinecone compatibility."""
+        return [[float(v) for v in emb] for emb in embeddings]
+
     def _call_api(self, texts: List[str]) -> List[List[float]]:
-        """Call HuggingFace API and return embeddings."""
+        """Call HuggingFace API and return embeddings as float32."""
         import requests
         import time
 
@@ -81,12 +86,12 @@ class HuggingFaceAPIEmbeddings(Embeddings):
                 result = resp.json()
                 # API returns list of embeddings (each is a list of floats)
                 if isinstance(result, list) and len(result) > 0:
-                    # If nested (batch), return as-is
+                    # Batch response: list of list of floats
                     if isinstance(result[0], list) and isinstance(result[0][0], float):
-                        return result
-                    # Single text might be wrapped differently
+                        return self._to_float32(result)
+                    # Single text: list of floats
                     if isinstance(result[0], float):
-                        return [result]
+                        return self._to_float32([result])
                 raise ValueError(f"Unexpected API response format: {type(result)}")
 
             elif resp.status_code == 503:
@@ -155,7 +160,7 @@ def _get_embeddings():
                 _embeddings_instance = emb
                 return _embeddings_instance
             else:
-                print(f"[SmartBot] HuggingFace API returned unexpected dimension: {len(test)}")
+                print(f"[SmartBot] HuggingFace API returned unexpected dimension: {len(test) if isinstance(test, list) else 'N/A'}")
         except Exception as e:
             print(f"[SmartBot] HuggingFace API embedding error: {e}")
 
