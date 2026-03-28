@@ -1,0 +1,5 @@
+# Install all production dependencies
+-r requirements.txt
+
+# ChromaDB (local development vector DB)
+chromadb==0.5.23
