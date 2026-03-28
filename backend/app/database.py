@@ -5,7 +5,7 @@ PostgreSQL + env-driven vectorstore:
   - PINECONE_API_KEY blank → ChromaDB local (secure/local)
 
 Embedding selection:
-  - HUGGINGFACE_API_KEY set → HuggingFace Inference API
+  - HUGGINGFACE_API_KEY set → HuggingFace Inference Endpoint
   - HUGGINGFACE_API_KEY blank → local sentence-transformers
   - Neither available → FakeEmbeddings (dev only, RAG won't work)
 """
@@ -49,50 +49,77 @@ def check_db_connection() -> bool:
 # ─────────────────────────────────────────────
 # Embeddings — env-driven selection
 # ─────────────────────────────────────────────
+_embeddings_instance = None
+
+
 def _get_embeddings():
     """
     Priority:
-    1. HuggingFace Inference API (if HUGGINGFACE_API_KEY set) — for Railway/demo
-    2. Local sentence-transformers — for local/secure
-    3. FakeEmbeddings fallback — dev only, RAG won't work
+    1. HuggingFace Endpoint via langchain-huggingface (if HUGGINGFACE_API_KEY set)
+    2. Local HuggingFaceEmbeddings via langchain-huggingface
+    3. Local SentenceTransformerEmbeddings (legacy fallback)
+    4. FakeEmbeddings fallback — dev only, RAG won't work
     """
-    hf_key = os.getenv("HUGGINGFACE_API_KEY", "")
+    global _embeddings_instance
+    if _embeddings_instance is not None:
+        return _embeddings_instance
 
+    hf_key = os.getenv("HUGGINGFACE_API_KEY", "")
+    model_name = "sentence-transformers/all-MiniLM-L6-v2"
+
+    # Option 1: HuggingFace Inference API via langchain-huggingface (recommended for Railway)
     if hf_key:
         try:
-            from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
-            print("[SmartBot] Using HuggingFace Inference API embeddings")
-            return HuggingFaceInferenceAPIEmbeddings(
-                api_key=hf_key,
-                model_name="sentence-transformers/all-MiniLM-L6-v2"
+            from langchain_huggingface import HuggingFaceEndpointEmbeddings
+            print(f"[SmartBot] Using HuggingFaceEndpointEmbeddings with {model_name}")
+            _embeddings_instance = HuggingFaceEndpointEmbeddings(
+                model=model_name,
+                huggingfacehub_api_token=hf_key,
             )
+            # Test that it actually works
+            test_result = _embeddings_instance.embed_query("test")
+            if isinstance(test_result, list) and len(test_result) > 0:
+                print(f"[SmartBot] Embeddings OK — dimension: {len(test_result)}")
+                return _embeddings_instance
+            else:
+                print(f"[SmartBot] HuggingFace endpoint returned unexpected result, trying next option...")
+                _embeddings_instance = None
         except Exception as e:
-            print(f"[SmartBot] HuggingFace API embedding error: {e}")
+            print(f"[SmartBot] HuggingFaceEndpointEmbeddings error: {e}")
+            _embeddings_instance = None
 
-    # Try local sentence-transformers
-    try:
-        from langchain_community.embeddings import SentenceTransformerEmbeddings
-        print("[SmartBot] Using local SentenceTransformer embeddings")
-        return SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-    except ImportError:
-        pass
-
+    # Option 2: Local HuggingFaceEmbeddings (needs sentence-transformers installed)
     try:
         from langchain_huggingface import HuggingFaceEmbeddings
         print("[SmartBot] Using local HuggingFaceEmbeddings")
-        return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        _embeddings_instance = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        return _embeddings_instance
+    except ImportError:
+        print("[SmartBot] langchain-huggingface local embeddings not available")
+    except Exception as e:
+        print(f"[SmartBot] Local HuggingFaceEmbeddings error: {e}")
+
+    # Option 3: Legacy SentenceTransformerEmbeddings
+    try:
+        from langchain_community.embeddings import SentenceTransformerEmbeddings
+        print("[SmartBot] Using legacy SentenceTransformerEmbeddings")
+        _embeddings_instance = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+        return _embeddings_instance
     except ImportError:
         pass
 
+    # Option 4: FakeEmbeddings — RAG will NOT work
     print("[SmartBot] WARNING: Using FakeEmbeddings — RAG will not work!")
     from langchain_community.embeddings import FakeEmbeddings
-    return FakeEmbeddings(size=384)
+    _embeddings_instance = FakeEmbeddings(size=384)
+    return _embeddings_instance
 
 
 # ─────────────────────────────────────────────
 # Pinecone vectorstore (Railway/demo)
 # ─────────────────────────────────────────────
 _pinecone_store = None
+
 
 def _get_pinecone_vectorstore():
     """Connect to Pinecone cloud vectorstore."""
@@ -121,7 +148,7 @@ def _get_pinecone_vectorstore():
     except ImportError:
         raise RuntimeError(
             "Pinecone packages not installed. Run: "
-            "pip install pinecone langchain-pinecone"
+            "pip install pinecone-client langchain-pinecone"
         )
     except Exception as e:
         raise RuntimeError(f"Pinecone connection failed: {e}")
@@ -206,7 +233,7 @@ def reset_vectorstore():
     - Pinecone: clears all vectors from the index
     - ChromaDB: deletes and recreates the collection
     """
-    global _vectorstore_instance, _pinecone_store
+    global _vectorstore_instance, _pinecone_store, _embeddings_instance
 
     if os.getenv("PINECONE_API_KEY", ""):
         # Pinecone reset — delete all vectors

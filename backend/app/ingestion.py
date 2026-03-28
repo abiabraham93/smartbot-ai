@@ -138,7 +138,7 @@ def _load_file(path: str) -> List[Document]:
 # ── Main ingestion function ───────────────────────────────────────────────────
 
 def ingest_file(file_path: str, chunk_size: int = 600, chunk_overlap: int = 100):
-    """Ingest a single file into the Chroma vectorstore."""
+    """Ingest a single file into the vectorstore (Pinecone or ChromaDB)."""
     if not os.path.isfile(file_path):
         print(f"Not a file: {file_path}")
         return
@@ -166,21 +166,21 @@ def ingest_file(file_path: str, chunk_size: int = 600, chunk_overlap: int = 100)
     try:
         vectordb = get_vectorstore()
         vectordb.add_documents(chunks)
-        print(f"Ingested {len(chunks)} chunks from {os.path.basename(file_path)}")
+        print(f"[SmartBot] Ingested {len(chunks)} chunks from {os.path.basename(file_path)}")
     except Exception as e:
-        if "_type" in str(e) or "collection" in str(e).lower():
-            print(f"[SmartBot] ChromaDB format issue — resetting vectorstore and retrying...")
-            from .database import reset_vectorstore, _get_chroma_client
-            global _vectorstore_instance
-            _vectorstore_instance = None
+        print(f"[SmartBot] Ingestion error for {os.path.basename(file_path)}: {e}")
+        # Only attempt ChromaDB reset if we're using ChromaDB
+        import os as _os
+        if not _os.getenv("PINECONE_API_KEY", ""):
             try:
-                client = _get_chroma_client()
-                client.reset()
-            except Exception:
-                pass
-            from .database import get_vectorstore as gvs
-            vectordb = gvs()
-            vectordb.add_documents(chunks)
-            print(f"Ingested {len(chunks)} chunks from {os.path.basename(file_path)} after reset")
+                print(f"[SmartBot] Attempting ChromaDB reset and retry...")
+                from .database import reset_vectorstore
+                reset_vectorstore()
+                vectordb = get_vectorstore()
+                vectordb.add_documents(chunks)
+                print(f"[SmartBot] Ingested {len(chunks)} chunks after reset")
+            except Exception as e2:
+                print(f"[SmartBot] Retry also failed: {e2}")
+                raise e2
         else:
             raise
