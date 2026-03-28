@@ -5,12 +5,13 @@ PostgreSQL + env-driven vectorstore:
   - PINECONE_API_KEY blank → ChromaDB local (secure/local)
 
 Embedding selection:
-  - HUGGINGFACE_API_KEY set → HuggingFace Inference Endpoint
+  - HUGGINGFACE_API_KEY set → HuggingFace Inference API (lightweight, no torch)
   - HUGGINGFACE_API_KEY blank → local sentence-transformers
   - Neither available → FakeEmbeddings (dev only, RAG won't work)
 """
 
 import os
+from typing import List
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from .config import DATABASE_URL, VECTOR_DB_DIR, EMBED_MODEL
@@ -47,6 +48,81 @@ def check_db_connection() -> bool:
 
 
 # ─────────────────────────────────────────────
+# Lightweight HuggingFace Embeddings (no torch!)
+# Calls the new router.huggingface.co endpoint
+# ─────────────────────────────────────────────
+from langchain_core.embeddings import Embeddings
+
+
+class HuggingFaceAPIEmbeddings(Embeddings):
+    """
+    Lightweight embeddings class that calls HuggingFace Inference API directly.
+    No torch/sentence-transformers needed — just uses HTTP requests.
+    Uses the new router.huggingface.co endpoint (old api-inference.huggingface.co is dead).
+    """
+
+    def __init__(self, api_key: str, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+        self.api_key = api_key
+        self.model_name = model_name
+        self.api_url = f"https://router.huggingface.co/hf-inference/pipeline/feature-extraction/{model_name}"
+
+    def _call_api(self, texts: List[str]) -> List[List[float]]:
+        """Call HuggingFace API and return embeddings."""
+        import requests
+        import time
+
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        payload = {"inputs": texts}
+
+        for attempt in range(3):
+            resp = requests.post(self.api_url, headers=headers, json=payload, timeout=30)
+
+            if resp.status_code == 200:
+                result = resp.json()
+                # API returns list of embeddings (each is a list of floats)
+                if isinstance(result, list) and len(result) > 0:
+                    # If nested (batch), return as-is
+                    if isinstance(result[0], list) and isinstance(result[0][0], float):
+                        return result
+                    # Single text might be wrapped differently
+                    if isinstance(result[0], float):
+                        return [result]
+                raise ValueError(f"Unexpected API response format: {type(result)}")
+
+            elif resp.status_code == 503:
+                # Model loading — wait and retry
+                wait_time = resp.json().get("estimated_time", 10)
+                print(f"[SmartBot] Model loading, waiting {wait_time:.0f}s...")
+                time.sleep(min(wait_time, 30))
+                continue
+
+            else:
+                raise ValueError(
+                    f"HuggingFace API error {resp.status_code}: {resp.text}"
+                )
+
+        raise ValueError("HuggingFace API failed after 3 retries")
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """Embed a list of documents."""
+        if not texts:
+            return []
+        # Process in batches of 32 to avoid API limits
+        all_embeddings = []
+        batch_size = 32
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            embeddings = self._call_api(batch)
+            all_embeddings.extend(embeddings)
+        return all_embeddings
+
+    def embed_query(self, text: str) -> List[float]:
+        """Embed a single query."""
+        result = self._call_api([text])
+        return result[0]
+
+
+# ─────────────────────────────────────────────
 # Embeddings — env-driven selection
 # ─────────────────────────────────────────────
 _embeddings_instance = None
@@ -55,60 +131,52 @@ _embeddings_instance = None
 def _get_embeddings():
     """
     Priority:
-    1. HuggingFace Endpoint via langchain-huggingface (if HUGGINGFACE_API_KEY set)
-    2. Local HuggingFaceEmbeddings via langchain-huggingface
-    3. Local SentenceTransformerEmbeddings (legacy fallback)
-    4. FakeEmbeddings fallback — dev only, RAG won't work
+    1. HuggingFace Inference API (lightweight, if HUGGINGFACE_API_KEY set) — for Railway
+    2. Local sentence-transformers — for local dev
+    3. FakeEmbeddings fallback — dev only, RAG won't work
     """
     global _embeddings_instance
     if _embeddings_instance is not None:
         return _embeddings_instance
 
     hf_key = os.getenv("HUGGINGFACE_API_KEY", "")
-    model_name = "sentence-transformers/all-MiniLM-L6-v2"
 
-    # Option 1: HuggingFace Inference API via langchain-huggingface (recommended for Railway)
+    # Option 1: Lightweight HuggingFace API (no torch needed — perfect for Railway)
     if hf_key:
         try:
-            from langchain_huggingface import HuggingFaceEndpointEmbeddings
-            print(f"[SmartBot] Using HuggingFaceEndpointEmbeddings with {model_name}")
-            _embeddings_instance = HuggingFaceEndpointEmbeddings(
-                model=model_name,
-                huggingfacehub_api_token=hf_key,
+            emb = HuggingFaceAPIEmbeddings(
+                api_key=hf_key,
+                model_name="sentence-transformers/all-MiniLM-L6-v2"
             )
-            # Test that it actually works
-            test_result = _embeddings_instance.embed_query("test")
-            if isinstance(test_result, list) and len(test_result) > 0:
-                print(f"[SmartBot] Embeddings OK — dimension: {len(test_result)}")
+            # Verify it works
+            test = emb.embed_query("test")
+            if isinstance(test, list) and len(test) == 384:
+                print(f"[SmartBot] Using HuggingFace API embeddings (dimension: {len(test)})")
+                _embeddings_instance = emb
                 return _embeddings_instance
             else:
-                print(f"[SmartBot] HuggingFace endpoint returned unexpected result, trying next option...")
-                _embeddings_instance = None
+                print(f"[SmartBot] HuggingFace API returned unexpected dimension: {len(test)}")
         except Exception as e:
-            print(f"[SmartBot] HuggingFaceEndpointEmbeddings error: {e}")
-            _embeddings_instance = None
+            print(f"[SmartBot] HuggingFace API embedding error: {e}")
 
-    # Option 2: Local HuggingFaceEmbeddings (needs sentence-transformers installed)
+    # Option 2: Local sentence-transformers (for local dev)
+    try:
+        from langchain_community.embeddings import SentenceTransformerEmbeddings
+        print("[SmartBot] Using local SentenceTransformer embeddings")
+        _embeddings_instance = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+        return _embeddings_instance
+    except ImportError:
+        pass
+
     try:
         from langchain_huggingface import HuggingFaceEmbeddings
         print("[SmartBot] Using local HuggingFaceEmbeddings")
         _embeddings_instance = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         return _embeddings_instance
     except ImportError:
-        print("[SmartBot] langchain-huggingface local embeddings not available")
-    except Exception as e:
-        print(f"[SmartBot] Local HuggingFaceEmbeddings error: {e}")
-
-    # Option 3: Legacy SentenceTransformerEmbeddings
-    try:
-        from langchain_community.embeddings import SentenceTransformerEmbeddings
-        print("[SmartBot] Using legacy SentenceTransformerEmbeddings")
-        _embeddings_instance = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-        return _embeddings_instance
-    except ImportError:
         pass
 
-    # Option 4: FakeEmbeddings — RAG will NOT work
+    # Option 3: FakeEmbeddings — RAG will NOT work
     print("[SmartBot] WARNING: Using FakeEmbeddings — RAG will not work!")
     from langchain_community.embeddings import FakeEmbeddings
     _embeddings_instance = FakeEmbeddings(size=384)
