@@ -11,6 +11,7 @@ Embedding selection:
 """
 
 import os
+import struct
 from typing import List
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
@@ -48,6 +49,19 @@ def check_db_connection() -> bool:
 
 
 # ─────────────────────────────────────────────
+# Float64 → Float32 conversion
+# ─────────────────────────────────────────────
+def _force_float32(value: float) -> float:
+    """Convert a float64 to true float32 via binary representation."""
+    return struct.unpack('f', struct.pack('f', value))[0]
+
+
+def _embeddings_to_float32(embeddings: List[List[float]]) -> List[List[float]]:
+    """Convert all embedding values to true float32."""
+    return [[_force_float32(v) for v in emb] for emb in embeddings]
+
+
+# ─────────────────────────────────────────────
 # Lightweight HuggingFace Embeddings (no torch!)
 # Calls the new router.huggingface.co endpoint
 # ─────────────────────────────────────────────
@@ -58,18 +72,14 @@ class HuggingFaceAPIEmbeddings(Embeddings):
     """
     Lightweight embeddings class that calls HuggingFace Inference API directly.
     No torch/sentence-transformers needed — just uses HTTP requests.
-    Uses the new router.huggingface.co endpoint (old api-inference.huggingface.co is dead).
-    Returns float32 values for Pinecone compatibility.
+    Uses the new router.huggingface.co endpoint.
+    All values are forced to float32 for Pinecone compatibility.
     """
 
     def __init__(self, api_key: str, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
         self.api_key = api_key
         self.model_name = model_name
         self.api_url = f"https://router.huggingface.co/hf-inference/pipeline/feature-extraction/{model_name}"
-
-    def _to_float32(self, embeddings: List[List[float]]) -> List[List[float]]:
-        """Convert float64 values to float32 for Pinecone compatibility."""
-        return [[float(v) for v in emb] for emb in embeddings]
 
     def _call_api(self, texts: List[str]) -> List[List[float]]:
         """Call HuggingFace API and return embeddings as float32."""
@@ -80,23 +90,30 @@ class HuggingFaceAPIEmbeddings(Embeddings):
         payload = {"inputs": texts}
 
         for attempt in range(3):
-            resp = requests.post(self.api_url, headers=headers, json=payload, timeout=30)
+            try:
+                resp = requests.post(self.api_url, headers=headers, json=payload, timeout=60)
+            except requests.exceptions.Timeout:
+                print(f"[SmartBot] HuggingFace API timeout (attempt {attempt + 1}/3)")
+                time.sleep(5)
+                continue
 
             if resp.status_code == 200:
                 result = resp.json()
-                # API returns list of embeddings (each is a list of floats)
                 if isinstance(result, list) and len(result) > 0:
                     # Batch response: list of list of floats
-                    if isinstance(result[0], list) and isinstance(result[0][0], float):
-                        return self._to_float32(result)
+                    if isinstance(result[0], list):
+                        return _embeddings_to_float32(result)
                     # Single text: list of floats
-                    if isinstance(result[0], float):
-                        return self._to_float32([result])
+                    if isinstance(result[0], (int, float)):
+                        return _embeddings_to_float32([result])
                 raise ValueError(f"Unexpected API response format: {type(result)}")
 
             elif resp.status_code == 503:
                 # Model loading — wait and retry
-                wait_time = resp.json().get("estimated_time", 10)
+                try:
+                    wait_time = resp.json().get("estimated_time", 10)
+                except Exception:
+                    wait_time = 10
                 print(f"[SmartBot] Model loading, waiting {wait_time:.0f}s...")
                 time.sleep(min(wait_time, 30))
                 continue
@@ -112,9 +129,9 @@ class HuggingFaceAPIEmbeddings(Embeddings):
         """Embed a list of documents."""
         if not texts:
             return []
-        # Process in batches of 32 to avoid API limits
+        # Process in batches of 16 to avoid API limits
         all_embeddings = []
-        batch_size = 32
+        batch_size = 16
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
             embeddings = self._call_api(batch)
@@ -160,7 +177,7 @@ def _get_embeddings():
                 _embeddings_instance = emb
                 return _embeddings_instance
             else:
-                print(f"[SmartBot] HuggingFace API returned unexpected dimension: {len(test) if isinstance(test, list) else 'N/A'}")
+                print(f"[SmartBot] HuggingFace API unexpected dimension: {len(test) if isinstance(test, list) else 'N/A'}")
         except Exception as e:
             print(f"[SmartBot] HuggingFace API embedding error: {e}")
 
@@ -309,7 +326,6 @@ def reset_vectorstore():
     global _vectorstore_instance, _pinecone_store, _embeddings_instance
 
     if os.getenv("PINECONE_API_KEY", ""):
-        # Pinecone reset — delete all vectors
         _pinecone_store = None
         try:
             pinecone_key   = os.getenv("PINECONE_API_KEY", "")
@@ -323,7 +339,6 @@ def reset_vectorstore():
             print(f"[SmartBot] Pinecone reset error: {e}")
         return
 
-    # ChromaDB reset — collection level
     _vectorstore_instance = None
     try:
         client = _get_chroma_client()
