@@ -16,21 +16,23 @@ from .config import LLM_MODEL
 # ─────────────────────────────────────────────
 # Offline prompt (documents only)
 # ─────────────────────────────────────────────
-OFFLINE_PROMPT = """You are SmartBot, a banking AI assistant built for a banking application.
+OFFLINE_PROMPT = """You are SmartBot, an AI assistant for a banking and insurance application.
 
-Answer the user's question directly and accurately.
-- If the question is about SmartBot features (like Internet mode, voice, admin), answer from your knowledge of this application
-- If the question is about banking topics, use the context documents below
-- Use bullet points for lists, numbered steps for procedures
-- Keep answers complete and accurate — do not cut off mid-sentence
-- Never say "based on the context"
+IMPORTANT RULES:
+1. You MUST answer the user's question using ONLY the context documents provided below.
+2. Read the context carefully — the answer IS in the documents. Look for tables, rows, and structured data.
+3. If the context contains table data with "|" separators, parse it carefully to extract the relevant information.
+4. Provide specific details: coverage amounts, coinsurance percentages, limits, conditions, and any exceptions mentioned.
+5. Use bullet points for lists and keep answers clear and complete.
+6. NEVER say "I don't have information" if the context documents contain relevant content — extract and present it.
+7. NEVER say "based on the context" or "according to the documents" — just answer directly and confidently.
 
 Context from documents:
 {context}
 
 Question: {question}
 
-Answer:"""
+Answer (use the context above to answer thoroughly):"""
 
 
 # ─────────────────────────────────────────────
@@ -107,7 +109,7 @@ def _get_llm(temperature: float = 0.1):
                 api_key=GROQ_API_KEY,
                 model=LLM_MODEL,
                 temperature=temperature,
-                max_tokens=800,
+                max_tokens=1200,
             )
         except ImportError:
             print("[SmartBot] langchain-groq not installed")
@@ -123,7 +125,7 @@ def _get_llm(temperature: float = 0.1):
 # Offline chain (documents only)
 # ─────────────────────────────────────────────
 
-def get_offline_chain(k: int = 4):
+def get_offline_chain(k: int = 6):
     llm    = _get_llm()
     prompt = PromptTemplate(
         input_variables=["context", "question"],
@@ -136,7 +138,7 @@ def get_offline_chain(k: int = 4):
                 vectordb  = get_vectorstore()
                 retriever = vectordb.as_retriever(
                     search_type="similarity",
-                    search_kwargs={"k": 4}
+                    search_kwargs={"k": k}
                 )
                 return retriever.invoke(q)
             except Exception as e:
@@ -171,13 +173,25 @@ def get_online_chain(k: int = 6):
 
     class SafeRetriever:
         def invoke(self, q):
-            return []
+            try:
+                vectordb  = get_vectorstore()
+                retriever = vectordb.as_retriever(
+                    search_type="similarity",
+                    search_kwargs={"k": k}
+                )
+                return retriever.invoke(q)
+            except Exception as e:
+                print(f"[SmartBot] Retriever error: {e}")
+                return []
 
     def run_online(question: str) -> str:
         try:
+            # Get document context too
+            docs = SafeRetriever().invoke(question)
+            context = _format_docs(docs) if docs else "No documents available."
             web_results = _web_search(question)
             filled = prompt.format(
-                context="No documents available.",
+                context=context,
                 web_results=web_results,
                 question=question
             )
