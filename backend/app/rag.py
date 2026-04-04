@@ -3,6 +3,7 @@ rag.py — SmartBot V2
 Two modes:
   - Offline: answers from documents only
   - Online:  answers from documents + DuckDuckGo web search
+Supports Mermaid diagram output for visual questions.
 """
 
 from langchain_core.prompts import PromptTemplate
@@ -11,6 +12,39 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 from .database import get_vectorstore
 from .config import LLM_MODEL
+
+
+# ─────────────────────────────────────────────
+# Mermaid diagram instructions (shared)
+# ─────────────────────────────────────────────
+DIAGRAM_INSTRUCTIONS = """
+DIAGRAM CAPABILITY:
+When the user asks for a flowchart, architecture diagram, process flow, org chart, sequence diagram, 
+ER diagram, or any visual/pictorial representation, you MUST output a Mermaid diagram.
+
+To create a diagram, wrap it in a mermaid code block exactly like this:
+
+```mermaid
+graph TD
+    A[Start] --> B[Process]
+    B --> C[End]
+```
+
+Diagram types you can use:
+- graph TD (top-down flowchart) or graph LR (left-right)
+- sequenceDiagram (interactions between systems/people)
+- classDiagram (class/entity relationships)
+- erDiagram (database entity relationships)
+- pie (pie charts with percentages)
+- gantt (project timelines)
+
+Diagram rules:
+- Use clear labels inside nodes like A[Descriptive Label]
+- Keep it readable — avoid more than 15 nodes
+- Use --> for solid arrows, -.-> for dotted, ==> for bold
+- Always include a brief text explanation before or after the diagram
+- Use subgraph blocks to group related nodes when appropriate
+"""
 
 
 # ─────────────────────────────────────────────
@@ -26,13 +60,13 @@ IMPORTANT RULES:
 5. Use bullet points for lists and keep answers clear and complete.
 6. NEVER say "I don't have information" if the context documents contain relevant content — extract and present it.
 7. NEVER say "based on the context" or "according to the documents" — just answer directly and confidently.
-
+""" + DIAGRAM_INSTRUCTIONS + """
 Context from documents:
 {context}
 
 Question: {question}
 
-Answer (use the context above to answer thoroughly):"""
+Answer (use the context above to answer thoroughly — include a Mermaid diagram if the user asks for any visual or pictorial representation):"""
 
 
 # ─────────────────────────────────────────────
@@ -51,7 +85,7 @@ RULES:
 - Never say "based on the provided context" — just answer directly and confidently.
 - Format clearly: use **bold**, bullet points, numbered steps where helpful.
 - If web results contain a source URL, mention it naturally in the answer.
-
+""" + DIAGRAM_INSTRUCTIONS + """
 COMPANY DOCUMENT CONTEXT:
 {context}
 
@@ -186,7 +220,6 @@ def get_online_chain(k: int = 6):
 
     def run_online(question: str) -> str:
         try:
-            # Get document context too
             docs = SafeRetriever().invoke(question)
             context = _format_docs(docs) if docs else "No documents available."
             web_results = _web_search(question)
